@@ -49,9 +49,9 @@ Tests
 -----
 
 The tests for tlist are in the `tests/` directory, and they're written using
-[cram](https://bitheap.org/cram/). Install cram and then ...
+[cram](https://bitheap.org/cram/). Install cram and then run all the tests with
 
-TODO: implement tests and finish this section.
+    $ cram test/*.t
 
 Contributions
 -------------

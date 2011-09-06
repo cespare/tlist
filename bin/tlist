@@ -60,7 +60,7 @@ class Tlist
       raise "Error: '#{label}' already includes a task '#{task}'."
     end
     @label_hash[label] << task
-    puts "Added task '#{task}' to #{"new" unless selected_label} label '#{label}'."
+    puts "Added task '#{task}' to #{"new " unless selected_label}label '#{label}'."
   end
 
   def delete_task(label, task)
@@ -104,28 +104,17 @@ class Tlist
   def print(label)
     labels = label ? [resolve_label(label)] : @label_array
     labels.each do |label|
-      if label == UNSORTED_NAME
-        print_unsorted_tasks(label, @label_hash[label])
+      print_label label
+      tasks = @label_hash[label]
+      if tasks.empty?
+        puts "(No tasks)"
+      elsif label == UNSORTED_NAME
+        tasks.each { |task| puts "* #{task}" }
       else
-        print_tasks(label, @label_hash[label])
+        tasks.each_with_index { |task, i| print_numbered task, i + 1, tasks.size }
       end
+      puts
     end
-  end
-
-  def print_unsorted_tasks(name, tasks)
-    print_label name
-    if tasks.empty?
-      puts "(No tasks)"
-    else
-      tasks.each { |task| puts "* #{task}" }
-    end
-    puts
-  end
-
-  def print_tasks(name, tasks)
-    print_label name
-    tasks.each_with_index { |task, i| print_numbered task, i + 1, tasks.size }
-    puts
   end
 
   def print_label(name)
@@ -259,13 +248,13 @@ if __FILE__ == $0
           tlist.add_task labels[choice.to_i - 1], task
           tlist.delete_task UNSORTED_NAME, task
           tlist.write_file!
-        when *["n", "new"]
+        when "n", "new"
           print "Enter new label name: "
           tlist.add_task STDIN.gets.strip, task
           tlist.delete_task UNSORTED_NAME, task
           tlist.write_file!
-        when *["s", "skip"]
-        when *["q", "quit", "a"]
+        when "s", "skip"
+        when "q", "quit", "a"
           exit 0
         else
           raise "Error: '#{choice}' unrecognized option. Aborting."
@@ -283,7 +272,7 @@ if __FILE__ == $0
         when *choices.keys.map(&:to_s)
           tlist.delete_task *choices[choice.to_i]
           tlist.write_file!
-        when *["q", "quit", "a"]
+        when "q", "quit", "a"
           exit 0
         else
           raise "Error: '#{choice}' unrecognized option. Aborting."
