@@ -173,7 +173,7 @@ class Tlist
   end
 end
 
-MODES = [:print, :add, :sort, :delete, :edit, :next, :finish, :current, :get_current, :unsorted]
+MODES = [:print, :add, :sort, :delete, :edit, :next, :finish, :current, :get_current, :unsorted, :labels]
 
 def get_mode(options)
   modes = options.keys.select { |option| MODES.include?(option) && options[option] }
@@ -185,112 +185,113 @@ def get_mode(options)
   modes[0] || :print
 end
 
-if __FILE__ == $0
-  todo_file = ENV["TLIST_FILE"]
-  abort "Need to set TLIST_FILE environment variable" unless todo_file
-  editor = ENV["EDITOR"] || "vim"
+todo_file = ENV["TLIST_FILE"]
+abort "Need to set TLIST_FILE environment variable" unless todo_file
+editor = ENV["EDITOR"] || "vim"
 
-  options = Trollop::options do
-    opt :print, "Print tasks (can omit this flag)."
-    opt :add, "Add a task"
-    opt :sort, "Sort unsorted tasks"
-    opt :delete, "Delete a task"
-    opt :label, "Limit to a particular label (used in combination with another option)",
-        :default => nil, :type => String
-    opt :edit, "Edit the task list file in your $EDITOR (use carefully)"
-    opt :current, "Set the current working label", :default => nil, :type => String
-    opt :get_current, "Get the current working label"
-    opt :next, "Print the next task in the current label"
-    opt :finish, "Delete the next task in the current label"
-    opt :unsorted, "Print unsorted tasks (shorthand for --print #{UNSORTED_NAME})"
+options = Trollop::options do
+  opt :print, "Print tasks (can omit this flag)."
+  opt :add, "Add a task"
+  opt :sort, "Sort unsorted tasks"
+  opt :delete, "Delete a task"
+  opt :label, "Limit to a particular label (used in combination with another option)",
+      :default => nil, :type => String
+  opt :edit, "Edit the task list file in your $EDITOR (use carefully)"
+  opt :current, "Set the current working label", :default => nil, :type => String
+  opt :get_current, "Get the current working label"
+  opt :next, "Print the next task in the current label"
+  opt :finish, "Delete the next task in the current label"
+  opt :unsorted, "Print unsorted tasks (shorthand for --print #{UNSORTED_NAME})"
+  opt :labels, "Print all labels"
 
-    # TODO: Decide whether to implement something like this
-    #opt :finish, "Move a task to the finished list", :default => false
-    #opt :print_finished, "Print finished tasks.", :default => false
-  end
+  # TODO: Decide whether to implement something like this
+  #opt :finish, "Move a task to the finished list", :default => false
+  #opt :print_finished, "Print finished tasks.", :default => false
+end
 
-  begin
-    mode = get_mode(options)
-    exec "#{editor} #{todo_file}" if mode == :edit
+begin
+  mode = get_mode(options)
+  exec "#{editor} #{todo_file}" if mode == :edit
 
-    tlist = Tlist.from_file(todo_file)
-    label = options[:label]
-    argument = ARGV.join(" ")
+  tlist = Tlist.from_file(todo_file)
+  label = options[:label]
+  argument = ARGV.join(" ")
 
-    case mode
-    when :print
-      tlist.print label
-    when :unsorted
-      tlist.print UNSORTED_NAME
-    when :add
-      label = tlist.add_task(label, argument)
-      tlist.write_file!
-    when :sort
-      unsorted_tasks = tlist.label_hash[UNSORTED_NAME].clone
-      puts "Sorting #{unsorted_tasks.size} unsorted tasks."
-      unsorted_tasks.each do |task|
-        puts
-        labels = tlist.label_array - [UNSORTED_NAME]
-        puts "Unsorted task:"
-        puts "> #{task}".yellow
-        if labels.size >= 1
-          puts "Existing labels:"
-          labels.each_with_index { |label, i| print_numbered label, i + 1, labels.size }
-        else
-          puts "No existing labels."
-        end
-        puts "Other options:"
-        ["n  Create a new label", "s  Skip this task", "q  Abort"].each { |option| puts option }
-        print "Select an option: "
-        choice = STDIN.gets.strip
-        case choice
-        when *(1..labels.size).map(&:to_s)
-          tlist.add_task labels[choice.to_i - 1], task
-          tlist.delete_task UNSORTED_NAME, task
-          tlist.write_file!
-        when "n", "new"
-          print "Enter new label name: "
-          tlist.add_task STDIN.gets.strip, task
-          tlist.delete_task UNSORTED_NAME, task
-          tlist.write_file!
-        when "s", "skip"
-        when "q", "quit", "a"
-          exit 0
-        else
-          raise "Error: '#{choice}' unrecognized option. Aborting."
-        end
-      end
-    when :delete
-      choices = tlist.print_all_tasks_numbered label
-      if choices.empty?
-        puts "No tasks."
+  case mode
+  when :print
+    tlist.print label
+  when :unsorted
+    tlist.print UNSORTED_NAME
+  when :add
+    label = tlist.add_task(label, argument)
+    tlist.write_file!
+  when :sort
+    unsorted_tasks = tlist.label_hash[UNSORTED_NAME].clone
+    puts "Sorting #{unsorted_tasks.size} unsorted tasks."
+    unsorted_tasks.each do |task|
+      puts
+      labels = tlist.label_array - [UNSORTED_NAME]
+      puts "Unsorted task:"
+      puts "> #{task}".yellow
+      if labels.size >= 1
+        puts "Existing labels:"
+        labels.each_with_index { |label, i| print_numbered label, i + 1, labels.size }
       else
-        range = choices.size == 1 ? "1" : "1-#{choices.size}"
-        print "Select a task to delete (#{range} or q to abort): "
-        choice = STDIN.gets.strip
-        case choice
-        when *choices.keys.map(&:to_s)
-          tlist.delete_task *choices[choice.to_i]
-          tlist.write_file!
-        when "q", "quit", "a"
-          exit 0
-        else
-          raise "Error: '#{choice}' unrecognized option. Aborting."
-        end
+        puts "No existing labels."
       end
-    when :next
-      puts tlist.next_task
-    when :finish
-      task = tlist.next_task
-      tlist.delete_task tlist.current, task
-      tlist.write_file!
-    when :current
-      tlist.set_current options[:current]
-      tlist.write_file!
-    when :get_current
-      puts tlist.current.else { "No working label set. Use $ tlist --current to set a working label." }
+      puts "Other options:"
+      ["n  Create a new label", "s  Skip this task", "q  Abort"].each { |option| puts option }
+      print "Select an option: "
+      choice = STDIN.gets.strip
+      case choice
+      when *(1..labels.size).map(&:to_s)
+        tlist.add_task labels[choice.to_i - 1], task
+        tlist.delete_task UNSORTED_NAME, task
+        tlist.write_file!
+      when "n", "new"
+        print "Enter new label name: "
+        tlist.add_task STDIN.gets.strip, task
+        tlist.delete_task UNSORTED_NAME, task
+        tlist.write_file!
+      when "s", "skip"
+      when "q", "quit", "a"
+        exit 0
+      else
+        raise "Error: '#{choice}' unrecognized option. Aborting."
+      end
     end
-  rescue RuntimeError => e
-    abort e.message
+  when :delete
+    choices = tlist.print_all_tasks_numbered label
+    if choices.empty?
+      puts "No tasks."
+    else
+      range = choices.size == 1 ? "1" : "1-#{choices.size}"
+      print "Select a task to delete (#{range} or q to abort): "
+      choice = STDIN.gets.strip
+      case choice
+      when *choices.keys.map(&:to_s)
+        tlist.delete_task *choices[choice.to_i]
+        tlist.write_file!
+      when "q", "quit", "a"
+        exit 0
+      else
+        raise "Error: '#{choice}' unrecognized option. Aborting."
+      end
+    end
+  when :next
+    puts tlist.next_task
+  when :finish
+    task = tlist.next_task
+    tlist.delete_task tlist.current, task
+    tlist.write_file!
+  when :current
+    tlist.set_current options[:current]
+    tlist.write_file!
+  when :get_current
+    puts tlist.current.else { "No working label set. Use $ tlist --current to set a working label." }
+  when :labels
+    puts tlist.label_array.join(" ")
   end
+rescue RuntimeError => e
+  abort e.message
 end
