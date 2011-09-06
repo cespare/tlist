@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |s|
   s.name        = "tlist"
-  s.version     = 0.0.1
+  s.version     = "0.0.1"
   s.authors     = ["Caleb Spare"]
   s.email       = ["cespare@gmail.com"]
   s.homepage    = ""
@@ -15,4 +15,6 @@ Gem::Specification.new do |s|
   s.executables   = `git ls-files -- bin/*`.split("\n").map { |f| File.basename(f) }
 
   s.add_dependency "trollop"
+  s.add_dependency "colorize"
+  s.add_dependency "methodchain"
 end

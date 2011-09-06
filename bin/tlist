@@ -1,34 +1,307 @@
 #!/usr/bin/env ruby
 
-TlistLabel = Struct.new :name, :tasks
+require "rubygems"
+require "trollop"
+require "colorize"
+require "methodchain"
+
+UNSORTED_NAME = "Unsorted"
+
+def print_numbered(item, number, total_items)
+  number_width = total_items.to_s.size + 1
+  puts "#{"#{number}.".ljust(number_width)} #{item}"
+end
 
 class Tlist
-  def initialize
-    @labels = []
+  attr_reader :label_array, :label_hash
+  attr_accessor :current
+  def initialize(filename)
+    @filename = filename
+    # I'd like to have ordered hashes instead of keeping the list + the hash, but I want 1.8 compatibility.
+    @label_array = [] # Array of label names
+    @label_hash = {}  # Label name => Array of tasks
+    @current = nil
   end
 
-  def add_label
-    @labels << []
+  def add_label(name)
+    raise "Invalid name '#{name}'" if name.start_with? "> "
+    @label_array << name
+    @label_hash[name] = []
+  end
+
+  def delete_label(name)
+    raise "No such label '#{name}'" unless @label_hash.include? name
+    @label_array.delete name
+    @label_hash.delete name
+  end
+
+  def resolve_label(label_part)
+    return UNSORTED_NAME unless label_part
+    selected_labels = @label_array.select { |l| l.downcase.index label_part.downcase }
+    if selected_labels.size > 1
+      raise "Error: '#{label}' matches multiple labels: #{selected_labels.join(', ')}."
+    end
+    selected_labels[0]
+  end
+
+  def set_current(label_part)
+    label = resolve_label label_part
+    raise "Error: no label matches '#{label_part}'." unless label
+    @current = label
+    puts "Set current working label to '#{label}'."
   end
 
   def add_task(label, task)
-    selected_label = @labels.select { |label| label.name.index label }
-    raise "Error: no label matching #{label}." if selected_label.empty?
-    raise "Error: #{label} matches multiple labels: #{selected_label.join(',')}." if selected_label.size > 1
+    raise "Invalid task name." if task.strip.empty?
+    selected_label = resolve_label(label)
+    add_label(label) unless selected_label
+    label = selected_label || label
+    if @label_hash[label].include? task
+      raise "Error: '#{label}' already includes a task '#{task}'."
+    end
+    @label_hash[label] << task
+    puts "Added task '#{task}' to #{"new" unless selected_label} label '#{label}'."
   end
 
+  def delete_task(label, task)
+    selected_label = resolve_label(label)
+    raise "Error: No such label '#{label}'." unless selected_label
+    unless @label_hash[selected_label].include? task
+      raise "Error: No such task '#{task}' in label '#{selected_label}'."
+    end
+    @label_hash[selected_label].delete task
+    puts "Removed task '#{task}' from label '#{selected_label}'."
+    if @label_hash[selected_label].empty? && selected_label != UNSORTED_NAME
+      delete_label selected_label
+      puts "Removed empty label '#{selected_label}'."
+    end
+  end
 
-  def to_file(filename)
+  def next_task
+    raise "No working label is set." unless @current
+    tasks = @label_hash[@current]
+    raise "No tasks left in working label '#{@current}'." if tasks.empty?
+    tasks[0]
+  end
+
+  def print_all_tasks_numbered(label)
+    labels = (label ? [resolve_label(label)] : @label_array).reject { |label| @label_hash[label].empty? }
+    return {} if labels.empty?
+    result = {}
+    task_count = @label_hash.values_at(*labels).map(&:size).reduce(&:+)
+    number = 0
+    labels.each do |label|
+      print_label label
+      @label_hash[label].each do |task|
+        print_numbered task, number += 1, task_count
+        result[number] = [label, task]
+      end
+      puts
+    end
+    result
+  end
+
+  def print(label)
+    labels = label ? [resolve_label(label)] : @label_array
+    labels.each do |label|
+      if label == UNSORTED_NAME
+        print_unsorted_tasks(label, @label_hash[label])
+      else
+        print_tasks(label, @label_hash[label])
+      end
+    end
+  end
+
+  def print_unsorted_tasks(name, tasks)
+    print_label name
+    if tasks.empty?
+      puts "(No tasks)"
+    else
+      tasks.each { |task| puts "* #{task}" }
+    end
+    puts
+  end
+
+  def print_tasks(name, tasks)
+    print_label name
+    tasks.each_with_index { |task, i| print_numbered task, i + 1, tasks.size }
+    puts
+  end
+
+  def print_label(name)
+    colored = name == UNSORTED_NAME ? name.blue.underline : name.green.underline
+    puts @current == name ? "#{colored} (Current)" : colored
+  end
+
+  def write_file!
+    File.open(@filename, "w") do |file|
+      @label_array.each do |label|
+        file.puts "#{"> " if @current == label}#{label}:"
+        @label_hash[label].each { |task| file.puts task }
+        file.puts
+      end
+    end
   end
 
   def self.from_file(filename)
     raise "Bad file: #{filename}" unless File.file? filename
-    tlist = Tlist.new
+    tlist = Tlist.new(filename)
     lines = File.open(filename).readlines.map(&:strip)
+    expect_label = true
+    lines.each_with_index do |line, i|
+      if line.empty?
+        expect_label = true
+        next
+      end
+
+      if expect_label
+        current, label = line.match(/^(> )?(.*):$/).to_a[1..2]
+        raise "Error parsing #{filename} at line #{i + 1} (expecting label)." unless label
+        if tlist.label_hash.include? label
+          raise "Error parsing #{filename} at line #{i + 1} (duplicate label)."
+        end
+        if current
+          if tlist.current
+            raise "Error parsing #{filename} at line #{i + 1} (more than one label is marked as current)."
+          end
+          tlist.current = label
+        end
+        tlist.add_label label
+        expect_label = false
+      else
+        tlist.label_hash[tlist.label_array.last] << line
+      end
+    end
+
+    # Keep the unsorted task list at the end.
+    if tlist.label_hash.include? UNSORTED_NAME
+      tlist.label_array.delete UNSORTED_NAME
+      tlist.label_array << UNSORTED_NAME
+    else
+      tlist.add_label UNSORTED_NAME
+    end
+    tlist
+  end
 end
 
+MODES = [:print, :add, :sort, :delete, :edit, :next, :finish, :current, :get_current, :unsorted]
+
+def get_mode(options)
+  modes = options.keys.select { |option| MODES.include?(option) && options[option] }
+  if modes.size > 1
+    puts "Error: only one of the following may be specified:"
+    MODES.each { |mode| puts "  --#{mode}" }
+    exit 1
+  end
+  modes[0] || :print
+end
 
 if __FILE__ == $0
   todo_file = ENV["TLIST_FILE"]
   abort "Need to set TLIST_FILE environment variable" unless todo_file
+  editor = ENV["EDITOR"] || "vim"
+
+  options = Trollop::options do
+    opt :print, "Print tasks (can omit this flag)."
+    opt :add, "Add a task"
+    opt :sort, "Sort unsorted tasks"
+    opt :delete, "Delete a task"
+    opt :label, "Limit to a particular label (used in combination with another option)",
+        :default => nil, :type => String
+    opt :edit, "Edit the task list file in your $EDITOR (use carefully)"
+    opt :current, "Set the current working label", :default => nil, :type => String
+    opt :get_current, "Get the current working label"
+    opt :next, "Print the next task in the current label"
+    opt :finish, "Delete the next task in the current label"
+    opt :unsorted, "Print unsorted tasks (shorthand for --print #{UNSORTED_NAME})"
+
+    # TODO: Decide whether to implement something like this
+    #opt :finish, "Move a task to the finished list", :default => false
+    #opt :print_finished, "Print finished tasks.", :default => false
+  end
+
+  begin
+    mode = get_mode(options)
+    exec "#{editor} #{todo_file}" if mode == :edit
+
+    tlist = Tlist.from_file(todo_file)
+    label = options[:label]
+    argument = ARGV.join(" ")
+
+    case mode
+    when :print
+      tlist.print label
+    when :unsorted
+      tlist.print UNSORTED_NAME
+    when :add
+      label = tlist.add_task(label, argument)
+      tlist.write_file!
+    when :sort
+      unsorted_tasks = tlist.label_hash[UNSORTED_NAME].clone
+      puts "Sorting #{unsorted_tasks.size} unsorted tasks."
+      unsorted_tasks.each do |task|
+        puts
+        labels = tlist.label_array - [UNSORTED_NAME]
+        puts "Unsorted task:"
+        puts "> #{task}".yellow
+        if labels.size >= 1
+          puts "Existing labels:"
+          labels.each_with_index { |label, i| print_numbered label, i + 1, labels.size }
+        else
+          puts "No existing labels."
+        end
+        puts "Other options:"
+        ["n  Create a new label", "s  Skip this task", "q  Abort"].each { |option| puts option }
+        print "Select an option: "
+        choice = STDIN.gets.strip
+        case choice
+        when *(1..labels.size).map(&:to_s)
+          tlist.add_task labels[choice.to_i - 1], task
+          tlist.delete_task UNSORTED_NAME, task
+          tlist.write_file!
+        when *["n", "new"]
+          print "Enter new label name: "
+          tlist.add_task STDIN.gets.strip, task
+          tlist.delete_task UNSORTED_NAME, task
+          tlist.write_file!
+        when *["s", "skip"]
+        when *["q", "quit", "a"]
+          exit 0
+        else
+          raise "Error: '#{choice}' unrecognized option. Aborting."
+        end
+      end
+    when :delete
+      choices = tlist.print_all_tasks_numbered label
+      if choices.empty?
+        puts "No tasks."
+      else
+        range = choices.size == 1 ? "1" : "1-#{choices.size}"
+        print "Select a task to delete (#{range} or q to abort): "
+        choice = STDIN.gets.strip
+        case choice
+        when *choices.keys.map(&:to_s)
+          tlist.delete_task *choices[choice.to_i]
+          tlist.write_file!
+        when *["q", "quit", "a"]
+          exit 0
+        else
+          raise "Error: '#{choice}' unrecognized option. Aborting."
+        end
+      end
+    when :next
+      puts tlist.next_task
+    when :finish
+      task = tlist.next_task
+      tlist.delete_task tlist.current, task
+      tlist.write_file!
+    when :current
+      tlist.set_current options[:current]
+      tlist.write_file!
+    when :get_current
+      puts tlist.current.else { "No working label set. Use $ tlist --current to set a working label." }
+    end
+  rescue RuntimeError => e
+    abort e.message
+  end
 end

@@ -1,0 +1,20 @@
+PATH
+  remote: .
+  specs:
+    tlist (0.0.1)
+      colorize
+      methodchain
+      trollop
+
+GEM
+  remote: http://rubygems.org/
+  specs:
+    colorize (0.5.8)
+    methodchain (0.4.2)
+    trollop (1.16.2)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  tlist!
