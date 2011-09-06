@@ -7,5 +7,5 @@ TODO
   * get-current
   * next
   * finish
-* Tab-completion
-* Finish documentation
+  * labels
+* See if it's possible to fix bug with tab-completing labels with spaces.

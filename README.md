@@ -36,14 +36,169 @@ the following dependencies (gems) are installed:
 * colorize
 * methodchain
 
+After you've got tlist, you should set up a few things in your `.bashrc`/`.bash_profile`. First, specify your
+chosen todo-list file as follows:
+
+    export TLIST_FILE=path/to/tlist_file.txt
+
+(Pro-tip: put this in your Dropbox folder as a quick way to share your todo list between multiple computers.)
+Next, you can get tab completion by sourcing the included file. Download `tlist_completion.bash` and put it
+somewhere on your machine. Then
+
+    source path/to/tlist_completion.bash
+
+(This is optional.) Finally, if you want to get really crazy, you might alias `tlist` to something shorter. I
+do this as follows:
+
+    alias t=tlist
+    complete -F _tlist t
+
+Now you should be ready to go. Make sure it works by checking that you see the following output at your
+command line (be sure to source your `.bashrc` or open a new terminal first):
+
+    $ tlist
+    Unsorted
+    (No tasks)
+
 Usage
 -----
 
-You can get command-line completion by ...
+You can see the full list of options by typing
 
-Set up your `.bashrc` by ...
+    $ tlist --help
 
-TODO: finish section
+However, there are only a few that you'll typically need. I'll guide you through a typical workflow using
+those commands.
+
+Let's start by adding a few tasks.
+
+    $ tlist -a "Go to the bank"
+    Added task 'Go to the bank' to label 'Unsorted'.
+    $ tlist -a "Set up dentist appointment"
+    Added task 'Set up dentist appointment' to label 'Unsorted'.
+    $ tlist -a "Buy milk"
+    Added task 'Buy milk' to label 'Unsorted'.
+    $ tlist -a "Buy coffee"
+    Added task 'Buy coffee' to label 'Unsorted'.
+
+(Note: tlist will join all arguments together, so you can type `$ tlist -a Go to the bank` with no quotes.
+However, if you've got any `'` characters in the task it will be interpreted as the start of a single-quoted
+string by bash, so it's good to get in the habit of quoting the whole task.) You can inspect your tasks by
+simply using `tlist`:
+
+    $ tlist
+    Unsorted
+    * Go to the bank
+    * Set up dentist appointment
+    * Buy milk
+    * Buy coffee
+
+Now, adding new tasks is extremely quick, but they go to this "Unsorted" label. Now let's suppose you have a
+few spare minutes, so you decide to organize all your tasks.
+
+    $ tlist -s
+    Sorting 4 unsorted tasks.
+
+    Unsorted task:
+    > Go to the bank
+    No existing labels.
+    Other options:
+    n  Create a new label
+    s  Skip this task
+    q  Abort
+    Select an option: n
+    Enter new label name: Errands
+    Added task 'Go to the bank' to new label 'Errands'.
+    Removed task 'Go to the bank' from label 'Unsorted'.
+
+    Unsorted task:
+    > Set up dentist appointment
+    ...
+
+I'm ommitting extra output here, but you can see how this interactive sorting step lets you quickly sort the
+tasks you made earlier. Let's suppose that your current task list looks like this:
+
+    $ tlist
+    Errands
+    1. Go to the bank
+    2. Set up dentist appointment
+
+    Groceries
+    1. Buy milk
+    2. Buy coffee
+
+    Unsorted
+    (No tasks)
+
+We can easily remove tasks:
+
+    $ tlist -d
+    Errands
+    1. Go to the bank
+    2. Set up dentist appointment
+
+    Groceries
+    3. Buy milk
+    4. Buy coffee
+
+    Select a task to delete (1-4 or q to abort): 3
+    Removed task 'Buy milk' from label 'Groceries'.
+
+It's also easy to restrict many of these operations to a specific label:
+
+    $ tlist -l Groceries -a Buy yogurt
+    Added task 'Buy yogurt' to label 'Groceries'.
+    $ tlist -l Groceries -a Buy fruit
+    Added task 'Buy fruit' to label 'Groceries'.
+    $ tlist -l Groceries
+    Groceries
+    1. Buy coffee
+    2. Buy yogurt
+    3. Buy fruit
+
+    $ tlist -l Groceries -d
+    Groceries
+    1. Buy coffee
+    2. Buy yogurt
+    3. Buy fruit
+
+    Select a task to delete (1-3 or q to abort): 2
+    Removed task 'Buy yogurt' from label 'Groceries'.
+
+Advanced usage
+--------------
+
+In addition to these basic operations, there is a concept of a "working" label from which you are actively
+completing items. You can get and set your working label as follows:
+
+    $ tlist -g
+    No working label set. Use $ tlist --current to set a working label.
+    $ tlist -c Errands
+    Set current working label to 'Errands'.
+    $ tlist -g
+    Errands
+
+Once you've set a working label, you can quickly pop items from the list and delete them as you finish with
+the `--next` and `--finish` commands:
+
+    $ tlist -n
+    Go to the bank
+    $ tlist -f
+    Removed task 'Go to the bank' from label 'Errands'.
+    $ tlist -n
+    Set up dentist appointment
+    $ tlist -f
+    Removed task 'Set up dentist appointment' from label 'Errands'.
+    Removed empty label 'Errands'.
+
+One last command that is very useful is `--edit`. Just type
+
+    $ tlist -e
+
+and the tlist file will be opened in your `$EDITOR`. Be careful not to change the formatting. The blank lines
+are significant, as are the colons (signify labels) and `>` (signifies current label). It's often quickest to
+do complex reorganization of your tasks in your editor, rather than the one-by-one operations that tlist
+natively supports.
 
 Tests
 -----
