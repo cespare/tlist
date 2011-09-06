@@ -16,7 +16,7 @@ The are three primary features that separate tlist from t:
    later the unsorted tasks may all be sorted at once.
 
 Point #3 is why tlist is very efficient in my workflow. When a new task occurs to me, I can add it to my queue
-of new tasks with almost no overhead (this avoids interruping my current train of thought). Later, I can sort
+of new tasks with almost no overhead (this avoids interrupting my current train of thought). Later, I can sort
 through my new tasks and organize them all at once.
 
 Installation
