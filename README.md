@@ -3,7 +3,7 @@ tlist
 
 tlist is an extremely lightweight TODO list manager for your commandline. It was written to be the bare
 minimum that would meet my particular needs. It takes its inspiration heavily from
-[t](http://stevelosh.com/projects/t/), a wonderful tool in the same vein written by the amazing Steve Losh
+[t](http://stevelosh.com/projects/t/), a wonderful tool for the same purpose written by the amazing Steve Losh
 (incidentally, owner of the prettiest website on the interwebs). tlist also borrows a workflow from
 [Things](http://culturedcode.com/things/) (as described to me; I've never actually used it).
 
@@ -41,7 +41,7 @@ chosen todo-list file as follows:
 
     export TLIST_FILE=path/to/tlist_file.txt
 
-(Pro-tip: put this in your Dropbox folder as a quick way to share your todo list between multiple computers.)
+(Protip: put this in your Dropbox folder as a quick way to share your todo list between multiple computers.)
 Next, you can get tab completion by sourcing the included file. Download `tlist_completion.bash` and put it
 somewhere on your machine. Then
 
